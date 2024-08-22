@@ -1,18 +1,21 @@
 import pygame
 import random
 
+# Game configuration variables #
 
 CELL_SIZE = 20
 GRID_HSIZE = 20
 GRID_VSIZE = 30
 
-GAME_SPEED = 0.05
+GAME_SPEED = 0.5
 SNAKE_WIDTH = 0.9
+
+# # # # # # # # # # # # # # # # 
 
 SCREEN_WIDTH = CELL_SIZE * GRID_HSIZE
 SCREEN_HEIGHT = CELL_SIZE * GRID_VSIZE
 
-GAME_SPEED = 10 // GAME_SPEED
+GAME_SPEED = 100 // GAME_SPEED
 
 UP = (0, -1)
 DOWN = (0, 1)
@@ -26,7 +29,8 @@ COLORS = [
 ]
 
 pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 running = True
 delta_time = 0
@@ -66,6 +70,11 @@ class Snake:
         self._head = head
         self._size = size
         self._drtn = direction
+        self._snake = [self._head]
+
+        for i in range(0, size - 1):
+            self._snake.insert(
+                0, Point(*(self._snake[i] + self._drtn).xy))
 
     def up(self):
         self._drtn.xy = UP if self._drtn.xy != DOWN else DOWN
@@ -79,18 +88,33 @@ class Snake:
     def left(self):
         self._drtn.xy = LEFT if self._drtn.xy != RIGHT else RIGHT
 
+    def grow(self, size):
+        self._snake.extend((self._head,) * size)
+
     def next(self):
         self._head += self._drtn
-        return self._head
+        self._snake.append(self._head)
+        return self._head, self._snake.pop(0)
 
 
-class Food:
-    pass
+class Feeder:
+    def __init__(self, grid):
+        self._grid_matrix = grid
+
+    def spawn_food(self, snake):
+        self._filtered_grid = [i if i not in snake else None \
+            for j in self._grid_matrix for i in j]
 
 
-class Cell:
-    def __init__(self, x, y, color):
-        pass
+
+class Cell(pygame.rect.Rect):
+    def __init__(self, x, y, length, color):
+        self._color = color
+        super().__init__(x, y, length, length)
+
+    @property
+    def color(self):
+        return self._color
 
 
 class Grid:
@@ -104,20 +128,20 @@ class Grid:
         for i in range(0, GRID_HSIZE):
             self._grid_matrix.append(list())
             for j in range(0, GRID_VSIZE):
-                box = pygame.rect.Rect(
-                    i * CELL_SIZE, 
-                    j * CELL_SIZE, 
-                    self._cell_size, 
-                    self._cell_size
-                )
-                pygame.draw.rect(self._sc, COLORS[(i + j) % 2], box)
-                self._grid_matrix[i].append(box)
+                cell = Cell(
+                    i * CELL_SIZE,
+                    j * CELL_SIZE,
+                    self._cell_size,
+                    COLORS[(i + j) % 2])
+                pygame.draw.rect(self._sc, cell.color, cell)
+                self._grid_matrix[i].append(cell)
 
-    def draw_snake(self, x, y):
+    def draw_snake(self, a, b):
         pygame.draw.rect(
             self._sc, COLORS[2],
-            self._grid_matrix[x][y].inflate(-2, -2),
-        )
+            self._grid_matrix[a.x][a.y].inflate(-2, -2))
+        tail = self._grid_matrix[b.x][b.y]
+        pygame.draw.rect(self._sc, tail.color, tail)
 
 
 snake = Snake(Point(5, 5), 2, Point(0, 1))
@@ -139,7 +163,8 @@ while running:
         snake.left()
 
     if elapsed_time > GAME_SPEED:
-        grid.draw_snake(*snake.next().xy)
+        head, tail = snake.next()
+        grid.draw_snake(head, tail)
         elapsed_time = 0
 
     pygame.display.flip()
