@@ -37,17 +37,26 @@ elapsed_time = 0
 
 
 class Point:
-    def __init__(self, x, y):
+    def __init__(self, x, y, color=None):
         self._x = x
         self._y = y
+        self._color = color
 
     @property
-    def px(self):
+    def x(self):
         return self._x
 
     @property
-    def py(self):
+    def y(self):
         return self._y
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, color):
+        self._color = color
 
     @property
     def xy(self):
@@ -59,32 +68,30 @@ class Point:
 
     def __add__(self, point):
         return Point(
-            self._x + point.px,
-            self._y + point.py)
+            self._x + point.x,
+            self._y + point.y,
+            self.color)
+
+    def __eq__(self, point):
+        return (self.x, self.y) == (point.x, point.y)
 
 
 class Snake:
-    def __init__(self, head, size, direction, color, grid):
+    def __init__(self, head, size, direction):
         self._size = size
         self._drtn = direction
-        self._color = color
-        self._grid = grid
-        self._snake = [self._get_cell(head)]
+        self._snake = [head]
 
-        for i in range(0, size - 1):
-            self._snake.insert(
-                    0, self._get_cell(self._snake[i] + self._drtn))
+        for i in range(size - 1):
+            self._snake.append(self._snake[i] + self._drtn)
 
     @property
-    def snake_cells(self):
+    def snake_points(self):
         return self._snake
 
     @property
     def head(self):
-        return self._snake[-1]
-
-    def _get_cell(self, point):
-        return self._grid[point.px][point.py]
+        return self._snake[0]
 
     def up(self):
         self._drtn.xy = UP if self._drtn.xy != DOWN else DOWN
@@ -99,26 +106,25 @@ class Snake:
         self._drtn.xy = LEFT if self._drtn.xy != RIGHT else RIGHT
 
     def grow(self, size):
-        self._snake.extend((self.head,) * size)
+        self._snake.extend((self._snake[-1],) * size)
 
     def next(self):
-        self._snake.append(self._get_cell(self.head + self._drtn))
-        return self.head, self._snake.pop(0)
+        self._snake.insert(0, self.head + self._drtn)
+        return self.head, self._snake.pop()
 
 
 class Feeder:
-    def __init__(self, grid):
-        self._flat_grid = grid
+    def __init__(self, color, grid):
+        self._color = color
+        self._grid = grid
         self._food  = None
 
     def spawn_food(self, snake):
-        filtered_grid = self._flat_grid.copy()
-        for cell in snake:
-            if cell not in filtered_grid:
-                print(cell.px, cell.py)
-            else:
-                filtered_grid.remove(cell)
+        filtered_grid = self._grid.copy()
+        for point in snake:
+                filtered_grid.remove(point)
         self._food = random.choice(filtered_grid)
+        self._food.color = self._color
         return self._food
 
     def is_eaten(self, head):
@@ -127,55 +133,54 @@ class Feeder:
         return False
 
 
-class Cell(pygame.rect.Rect, Point):
-    def __init__(self, x, y, px, py, side, color):
+class Cell(pygame.rect.Rect):
+    def __init__(self, x, y, side, color):
         self._color = color
         super().__init__(x, y, side, side)
-        Point.__init__(self, px, py)
 
     @property
     def color(self):
         return self._color
-    ################ to be worked on #########
-    def set_color(self, color):
-        self._color = color
-        return self
 
 
 class Grid:
-    def __init__(self, sc, rows, cols, cell_size):
+    def __init__(self, sc, rows, cols, cell_size, colors):
         self._sc = sc
-        self._cell_size = cell_size
-        self._grid_matrix = [[Cell(
-            x * self._cell_size, y * self._cell_size,
-            x, y, self._cell_size, COLORS[(x + y) % 2]) \
-            for y in range(cols)] for x in range(rows)]
-        self._flat_grid = [i for j in self._grid_matrix for i in j]
+        self._cell_matrix = [[Cell(
+                x * cell_size, y * cell_size,
+                    cell_size, colors[(x + y) % 2]) \
+                        for y in range(cols)] for x in range(rows)]
+        self._points = [Point(x, y) for x in range(rows) \
+                                            for y in range(cols)]
 
-        for cell in self._flat_grid:
+        for point in self._points:
+            cell = self._get_cell(point)
             pygame.draw.rect(self._sc, cell.color, cell)
 
-    @property
-    def full_grid(self):
-        return self._grid_matrix
+    def _get_cell(self, point):
+        return self._cell_matrix[point.x][point.y]
 
     @property
-    def flat_grid(self):
-        return self._flat_grid
+    def point_matrix(self):
+        return self._points
 
     def draw_snake(self, head, tail):
-        pygame.draw.rect(self._sc, COLORS[2], head.inflate(-2, -2))
-        pygame.draw.rect(self._sc, tail.color, tail)
+        head_cell = self._get_cell(head)
+        tail_cell = self._get_cell(tail)
+        pygame.draw.rect(self._sc, head.color,
+                                    head_cell.inflate(-2, -2))
+        pygame.draw.rect(self._sc, tail_cell.color, tail_cell)
 
-    def draw_food(self, cell):
-        pygame.draw.rect(self._sc, "red", cell)
+    def draw_food(self, point):
+        food = self._get_cell(point)
+        pygame.draw.rect(self._sc, point.color, food)
 
 
-grid = Grid(screen, GRID_HSIZE, GRID_VSIZE, CELL_SIZE)
-snake = Snake(Point(5, 5), 2, Point(0, 1), COLORS[2], grid.full_grid)
-feeder = Feeder(grid.flat_grid)
+grid = Grid(screen, GRID_HSIZE, GRID_VSIZE, CELL_SIZE, COLORS)
+snake = Snake(Point(5, 5, COLORS[2]), 2, Point(0, 1))
+feeder = Feeder("red", grid.point_matrix)
 
-grid.draw_food(feeder.spawn_food(snake.snake_cells))
+grid.draw_food(feeder.spawn_food(snake.snake_points))
 
 keys = pygame.key.get_pressed()
 
@@ -185,6 +190,8 @@ while running:
             running = False
         if event.type == pygame.KEYDOWN:
             keys = pygame.key.get_pressed()
+            if keys[pygame.K_p]:
+                pygame.time.wait(10000)
 
     if elapsed_time > GAME_SPEED:
         if keys[pygame.K_w]:
@@ -199,7 +206,7 @@ while running:
         head, tail = snake.next()
         grid.draw_snake(head, tail)
         if feeder.is_eaten(snake.head):
-            grid.draw_food(feeder.spawn_food(snake.snake_cells))
+            grid.draw_food(feeder.spawn_food(snake.snake_points))
             snake.grow(1)
         elapsed_time = 0
 
