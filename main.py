@@ -72,14 +72,21 @@ class Point:
             self._y + point.y,
             self.color)
 
+    def __mod__(self, point):
+        return Point(
+            self._x % point.x,
+            self._y % point.y,
+            self.color)
+
     def __eq__(self, point):
         return (self.x, self.y) == (point.x, point.y)
 
 
 class Snake:
-    def __init__(self, head, size, direction):
+    def __init__(self, head, size, direction, grid_corner):
         self._size = size
         self._drtn = direction
+        self._grid_corner = grid_corner
         self._snake = [head]
 
         for i in range(size - 1):
@@ -109,7 +116,7 @@ class Snake:
         self._snake.extend((self._snake[-1],) * size)
 
     def next(self):
-        self._snake.insert(0, self.head + self._drtn)
+        self._snake.insert(0, (self.head + self._drtn) % self._grid_corner)
         return self.head, self._snake.pop()
 
 
@@ -177,7 +184,8 @@ class Grid:
 
 
 grid = Grid(screen, GRID_HSIZE, GRID_VSIZE, CELL_SIZE, COLORS)
-snake = Snake(Point(5, 5, COLORS[2]), 2, Point(0, 1))
+snake = Snake(Point(5, 5, COLORS[2]), 2, Point(0, 1),
+                                Point(GRID_HSIZE, GRID_VSIZE))
 feeder = Feeder("red", grid.point_matrix)
 
 grid.draw_food(feeder.spawn_food(snake.snake_points))
